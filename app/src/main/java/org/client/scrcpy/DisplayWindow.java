@@ -1,6 +1,7 @@
 package org.client.scrcpy;
 
 import android.content.Context;
+import android.graphics.PixelFormat;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -51,6 +52,9 @@ public class DisplayWindow extends FrameLayout {
 
         container = findViewById(R.id.container);
         surfaceView = findViewById(R.id.surface);
+        surfaceView.setZOrderOnTop(true);
+        surfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);
+
         actionbar = findViewById(R.id.actionbar);
 
         findViewById(R.id.iv_close).setOnTouchListener(new OnTouchListener() {

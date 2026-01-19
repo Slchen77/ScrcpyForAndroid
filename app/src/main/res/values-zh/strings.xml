@@ -1,6 +1,16 @@
 <resources>
     <string name="app_name">安卓控</string>
 
+    <string name="language_switch">语言切换</string>
+    <string name="language_switch_label">中/En</string>
+    <string name="device_icon">设备图标</string>
+    <string name="connect_device">连接设备</string>
+    <string name="enter_ip_address">输入IP地址</string>
+    <string name="confirm_connect">确定连接</string>
+    <string name="ip_address_empty">IP地址不能为空</string>
+    <string name="retry">重试</string>
+    <string name="history">历史记录</string>
+
     <string name="label_server_ip">手机的IP地址,例如: 192.168.0.73</string>
     <string name="label_video_resolution">传输分辨率</string>
     <string name="delay_control">延迟控制</string>
@@ -23,5 +33,3 @@
 
     <string name="need_register">需要注册</string>
 </resources>
-
-

@@ -1,6 +1,16 @@
 <resources>
     <string name="app_name">ScrcpyForAndroid</string>
 
+    <string name="language_switch">Language Switch</string>
+    <string name="language_switch_label">中/En</string>
+    <string name="device_icon">Device Icon</string>
+    <string name="connect_device">Connect Device</string>
+    <string name="enter_ip_address">Enter IP Address</string>
+    <string name="confirm_connect">Confirm Connection</string>
+    <string name="ip_address_empty">IP address cannot be empty</string>
+    <string name="retry">Retry</string>
+    <string name="history">History</string>
+
     <string name="label_server_ip">Remote Device IP address, For example: 192.168.0.73</string>
     <string name="label_video_resolution">Resolution</string>
     <string name="delay_control">Delay Control</string>
@@ -24,42 +34,4 @@
 
     <string name="need_register">Registration required</string>
 
-    <string-array name="options_resolution_values">
-        <item>1920x1080</item>
-        <item>1600x720</item>
-        <item>1280x720</item>
-        <item>1200x540</item>
-        <item>960x720</item>
-        <item>800x448</item>
-        <item>640x360</item>
-    </string-array>
-
-    <string-array name="options_delay_keys">
-        <item>Hight (100ms)</item>
-        <item>Medium (60ms)</item>
-        <item>Low (30ms)</item>
-    </string-array>
-
-    <integer-array name="options_delay_values">
-        <item>100</item>
-        <item>60</item>
-        <item>30</item>
-    </integer-array>
-
-    <string-array name="options_bitrate_keys">
-        <item>6 Mbps</item>
-        <item>4 Mbps</item>
-        <item>2 Mbps</item>
-        <item>1 Mbps</item>
-    </string-array>
-
-    <integer-array name="options_bitrate_values">
-        <item>6144000</item>
-        <item>4096000</item>
-        <item>2048000</item>
-        <item>1024000</item>
-    </integer-array>
-
 </resources>
-
-

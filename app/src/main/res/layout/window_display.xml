@@ -46,7 +46,7 @@
         android:id="@+id/container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@color/black"
+        android:background="@color/white"
         android:minHeight="200dp">
 
         <SurfaceView
@@ -58,9 +58,10 @@
             android:id="@+id/hint"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="@color/white"
             android:gravity="center"
             android:text="链接中...30秒没反应估计就挂了\n\n注意手机提示配对的弹窗"
-            android:textColor="@color/white" />
+            android:textColor="@color/black" />
     </FrameLayout>
 
     <LinearLayout

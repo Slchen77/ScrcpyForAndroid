@@ -2,6 +2,7 @@ package org.client.scrcpy;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -9,12 +10,7 @@ import android.content.ServiceConnection;
 import android.content.pm.ActivityInfo;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
-import android.graphics.Color;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
-import android.net.Uri;
+import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -23,7 +19,7 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
-import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
@@ -33,44 +29,37 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListPopupWindow;
-import android.widget.Spinner;
-import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import org.client.scrcpy.utils.HttpRequest;
 import org.client.scrcpy.utils.PreUtils;
 import org.client.scrcpy.utils.Progress;
 import org.client.scrcpy.utils.ThreadUtils;
 import org.client.scrcpy.utils.Util;
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
+import java.util.Locale;
 
+public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
 
-public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, SensorEventListener {
-
-    // 是否直接连接远程
     public final static String START_REMOTE = "start_remote_headless";
 
-    private boolean headlessMode = false;  // 是否为无头模式，不显示操作选项等
+    private boolean headlessMode = false;
     private int screenWidth;
     private int screenHeight;
     private boolean landscape = false;
     private boolean first_time = true;
-    private boolean result_of_Rotation = false;
     private boolean serviceBound = false;
-    // 如果 pause 切换到后台，断开后，自动重连
-    // 该状态禁止保存恢复
     private boolean resumeScrcpy = false;
-    SensorManager sensorManager;
+
     private SendCommands sendCommands;
     private int videoBitrate;
     private int delayControl;
@@ -80,11 +69,8 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
     private Surface surface;
     private Scrcpy scrcpy;
     private long timestamp = 0;
-
-    // private byte[] fileBase64;
     private LinearLayout linearLayout;
-
-    private int errorCount = 0;  // 连接失败错误的计数，错误超过一定次数重启服务
+    private int errorCount = 0;
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -118,7 +104,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                             Toast.makeText(context, "Connection Timed out 2", Toast.LENGTH_SHORT).show();
                         } else {
                             first_time = false;
-                            // 连接成功后，再把按钮显示出来
                             set_display_nd_touch();
                             connectSuccessExt();
                         }
@@ -129,7 +114,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                 set_display_nd_touch();
                 connectSuccessExt();
             }
-            // set_display_nd_touch();
         }
 
         @Override
@@ -142,13 +126,11 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         showMainView(false);
     }
 
-    // userDisconnect ：是否为用户手动断开连接
     private void showMainView(boolean userDisconnect) {
         if (scrcpy != null) {
             scrcpy.StopService();
         }
         try {
-            // 可能会导致重复解绑，所以捕获异常
             unbindService(serviceConnection);
         } catch (Exception e) {
             e.printStackTrace();
@@ -165,11 +147,9 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         if (scrcpy != null) {
             scrcpy = null;
         }
-        // 退出连接，需要处理额外的事件
         connectExitExt(userDisconnect);
     }
 
-    @SuppressLint("SourceLockedOrientationActivity")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -182,7 +162,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             screenHeight = savedInstanceState.getInt("screenHeight");
             screenWidth = savedInstanceState.getInt("screenWidth");
         }
-        // 读取屏幕是横屏、还是竖屏
         landscape = getApplication().getResources().getConfiguration().orientation
                 != Configuration.ORIENTATION_PORTRAIT;
         if (first_time) {
@@ -191,17 +170,11 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             Log.e("Scrcpy: ", "from onCreate");
             start_screen_copy_magic();
         }
-        sensorManager = (SensorManager) this.getSystemService(SENSOR_SERVICE);
-        Sensor proximity;
-        proximity = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
-        sensorManager.registerListener(this, proximity, SensorManager.SENSOR_DELAY_NORMAL);
 
         if (savedInstanceState != null) {
             Log.i("Scrcpy", "outState: " + savedInstanceState.getBoolean("from_save_instance"));
         }
-        // 从销毁状态恢复
         if (savedInstanceState == null || !savedInstanceState.getBoolean("from_save_instance", false)) {
-            // 初次进入 app
             if (getIntent() != null && getIntent().getExtras() != null) {
                 headlessMode = getIntent().getExtras().getBoolean(START_REMOTE, headlessMode);
             }
@@ -209,12 +182,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         if (headlessMode && first_time) {
             getAttributes();
             connectScrcpyServer(PreUtils.get(this, Constant.CONTROL_REMOTE_ADDR, ""));
-        }
-        if (headlessMode) {
-            View scrollView = findViewById(R.id.main_scroll_view);
-            if (scrollView != null) {
-                scrollView.setVisibility(View.INVISIBLE);
-            }
         }
     }
 
@@ -225,9 +192,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         outState.putBoolean("from_save_instance", true);
         outState.putBoolean("first_time", first_time);
         outState.putBoolean("landscape", landscape);
-        outState.putBoolean("headlessMode", headlessMode);  // 第二次进入时，intent会被重置，需要保存状态
-        // 小窗模式、半屏模式切换避免恢复横竖屏，会导致黑屏（因为scrcpy恢复的resume只允许一次连接）
-        // outState.putBoolean("resumeScrcpy", resumeScrcpy);
+        outState.putBoolean("headlessMode", headlessMode);
         outState.putInt("screenHeight", screenHeight);
         outState.putInt("screenWidth", screenWidth);
     }
@@ -242,121 +207,96 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         final View decorView = getWindow().getDecorView();
         decorView.setSystemUiVisibility(View.VISIBLE);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        landscape = false;  // 将模式重新置为 竖屏，模式不正确将导致连接黑屏
+        landscape = false;
         setContentView(R.layout.activity_main);
-        final Button startButton = findViewById(R.id.button_start);
-        // final Button floatButton = findViewById(R.id.button_start_float);
+
+        Button connectButton = findViewById(R.id.button_connect_device);
+        TextView languageButton = findViewById(R.id.button_language_switch);
 
         sendCommands = new SendCommands();
 
-        startButton.setOnClickListener(v -> {
-            // local_ip = wifiIpAddress();
-            getAttributes();
-            connectScrcpyServer(serverAdr);
-        });
+        connectButton.setOnClickListener(v -> showConnectDialog());
 
-//        floatButton.setOnClickListener(v -> {
-//            getAttributes();
-//            showDisplayWindow();
-//        });
-        get_saved_preferences();
-
-        EditText editText = findViewById(R.id.editText_server_host);
-
-        findViewById(R.id.history_list).setOnClickListener(v -> {
-            Log.i("Scrcpy", "focus true");
-            editText.clearFocus();
-            showListPopulWindow(editText);
-        });
-
-        // 无头模式，实际上要隐藏掉所有控件，否则会被显示出 ip 地址
-        if (headlessMode) {
-            View scrollView = findViewById(R.id.main_scroll_view);
-            if (scrollView != null) {
-                scrollView.setVisibility(View.INVISIBLE);
-            }
-        }
+        languageButton.setOnClickListener(v -> switchLanguage());
     }
 
-    private void showListPopulWindow(EditText mEditText) {
-        String[] list = getHistoryList();//要填充的数据
-        if (list.length == 0) {  // 如果list为空，则使用本机填充一个
+    private void showConnectDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_connect, null);
+        builder.setView(dialogView);
+
+        EditText editTextIp = dialogView.findViewById(R.id.editText_ip);
+        Button confirmButton = dialogView.findViewById(R.id.button_confirm_connect);
+        ImageView historyButton = dialogView.findViewById(R.id.button_history);
+
+        String lastIp = PreUtils.get(context, Constant.CONTROL_REMOTE_ADDR, "");
+        if (TextUtils.isEmpty(lastIp)) {
+            String[] historyList = getHistoryList();
+            if (historyList.length > 0) {
+                editTextIp.setText(historyList[0]);
+            }
+        } else {
+            editTextIp.setText(lastIp);
+        }
+
+        AlertDialog dialog = builder.create();
+
+        confirmButton.setOnClickListener(v -> {
+            String ipAddress = editTextIp.getText().toString().trim();
+            if (!TextUtils.isEmpty(ipAddress)) {
+                serverAdr = ipAddress;
+                saveHistory(serverAdr);
+                PreUtils.put(context, Constant.CONTROL_REMOTE_ADDR, serverAdr);
+                getAttributes();
+                connectScrcpyServer(serverAdr);
+                dialog.dismiss();
+            } else {
+                Toast.makeText(context, R.string.ip_address_empty, Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        historyButton.setOnClickListener(v -> {
+            editTextIp.clearFocus();
+            showListPopupWindow(editTextIp);
+        });
+
+        dialog.show();
+    }
+    
+    private void showListPopupWindow(EditText mEditText) {
+        String[] list = getHistoryList();
+        if (list.length == 0) {
             list = new String[]{"127.0.0.1"};
         }
         final ListPopupWindow listPopupWindow;
         listPopupWindow = new ListPopupWindow(this);
-        listPopupWindow.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, list));//用android内置布局，或设计自己的样式
-        listPopupWindow.setAnchorView(mEditText);//以哪个控件为基准，在该处以mEditText为基准
+        listPopupWindow.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, list));
+        listPopupWindow.setAnchorView(mEditText);
         listPopupWindow.setModal(true);
         listPopupWindow.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         String[] finalList = list;
-        listPopupWindow.setOnItemClickListener(new AdapterView.OnItemClickListener() {//设置项点击监听
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                mEditText.setText(finalList[i]);
-                listPopupWindow.dismiss();
-            }
+        listPopupWindow.setOnItemClickListener((adapterView, view, i, l) -> {
+            mEditText.setText(finalList[i]);
+            listPopupWindow.dismiss();
         });
         listPopupWindow.show();
     }
 
-
-//    private void showDisplayWindow() {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-//            if (!Settings.canDrawOverlays(this)) {
-//                //启动Activity让用户授权
-//                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-//                startActivity(intent);
-//                return;
-//            }
-//        }
-//        Intent it = new Intent(this, FloatService.class);
-//        it.putExtra("ip", serverAdr);
-//        it.putExtra("w", screenWidth);
-//        it.putExtra("h", screenHeight);
-//        it.putExtra("b", videoBitrate);
-//        startService(it);
-//        finish();
-//    }
-
-
-    public void get_saved_preferences() {
-        final EditText editTextServerHost = findViewById(R.id.editText_server_host);
-        final Switch aSwitch0 = findViewById(R.id.switch0);
-        final Switch aSwitch1 = findViewById(R.id.switch1);
-        String historySpServerAdr = PreUtils.get(context, Constant.CONTROL_REMOTE_ADDR, "");
-        if (TextUtils.isEmpty(historySpServerAdr)) {
-            String[] historyList = getHistoryList();
-            if (historyList.length > 0) {
-                editTextServerHost.setText(historyList[0]);
-            }
+    private void switchLanguage() {
+        Resources resources = getResources();
+        Configuration config = resources.getConfiguration();
+        DisplayMetrics dm = resources.getDisplayMetrics();
+        if (config.locale.getLanguage().equals("zh")) {
+            config.setLocale(Locale.ENGLISH);
         } else {
-            editTextServerHost.setText(historySpServerAdr);
+            config.setLocale(Locale.SIMPLIFIED_CHINESE);
         }
-        aSwitch0.setChecked(PreUtils.get(context, Constant.CONTROL_NO, false));
-        aSwitch1.setChecked(PreUtils.get(context, Constant.CONTROL_NAV, false));
-        setSpinner(R.array.options_resolution_values, R.id.spinner_video_resolution, Constant.PREFERENCE_SPINNER_RESOLUTION);
-        setSpinner(R.array.options_bitrate_keys, R.id.spinner_video_bitrate, Constant.PREFERENCE_SPINNER_BITRATE);
-        setSpinner(R.array.options_delay_keys, R.id.delay_control_spinner, Constant.PREFERENCE_SPINNER_DELAY);
-        if (aSwitch0.isChecked()) {
-            aSwitch1.setClickable(false);
-            aSwitch1.setTextColor(Color.GRAY);
-            // aSwitch1.setVisibility(View.GONE);
-        }
-
-        aSwitch0.setOnClickListener(v -> {
-            if (aSwitch0.isChecked()) {
-                aSwitch1.setClickable(false);
-                aSwitch1.setTextColor(Color.GRAY);
-                // aSwitch1.setVisibility(View.GONE);
-            } else {
-                aSwitch1.setClickable(true);
-                aSwitch1.setTextColor(Color.WHITE);
-                // aSwitch1.setVisibility(View.VISIBLE);
-            }
-        });
+        resources.updateConfiguration(config, dm);
+        recreate();
     }
+
 
     @SuppressLint("ClickableViewAccessibility")
     public void set_display_nd_touch() {
@@ -367,29 +307,18 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             final Display display = getWindowManager().getDefaultDisplay();
             display.getRealMetrics(metrics);
         }
-//        float this_dev_height = metrics.heightPixels;
-//        float this_dev_width = metrics.widthPixels;
 
         float this_dev_height = linearLayout.getHeight();
         float this_dev_width = linearLayout.getWidth();
-        if (PreUtils.get(context, Constant.CONTROL_NAV, false) &&
-                !PreUtils.get(context, Constant.CONTROL_NO, false)) {
-            if (landscape) {
-                this_dev_width = this_dev_width - 96;
-            } else {                                                 //100 is the height of nav bar but need multiples of 8.
-                this_dev_height = this_dev_height - 96;
-            }
-        }
+
         int[] rem_res = scrcpy.get_remote_device_resolution();
         int remote_device_height = rem_res[1];
         int remote_device_width = rem_res[0];
         float remote_device_aspect_ratio = (float) remote_device_height / remote_device_width;
 
-        if (!landscape) {                                                            //Portrait
+        if (!landscape) {
             float this_device_aspect_ratio = this_dev_height / this_dev_width;
-//            Log.d("fuck", "set_display_nd_touch: "+this_device_aspect_ratio);
             if (remote_device_aspect_ratio > this_device_aspect_ratio) {
-                //TODO
                 float wantWidth = this_dev_height / remote_device_aspect_ratio;
                 int padding = (int) (this_dev_width - wantWidth) / 2;
                 linearLayout.setPadding(padding, 0, padding, 0);
@@ -397,9 +326,8 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                 linearLayout.setPadding(0, (int) (((this_device_aspect_ratio - remote_device_aspect_ratio) * this_dev_width)), 0, 0);
             }
 
-        } else {                                                                        //Landscape
+        } else {
             float this_device_aspect_ratio = this_dev_width / this_dev_height;
-//            Log.d("fuck", "set_display_nd_touch_land: "+this_device_aspect_ratio);
             if (remote_device_aspect_ratio > this_device_aspect_ratio) {
                 float wantHeight = this_dev_width / remote_device_aspect_ratio;
                 int padding = (int) (this_dev_height - wantHeight) / 2;
@@ -407,83 +335,18 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             } else if (remote_device_aspect_ratio < this_device_aspect_ratio) {
                 linearLayout.setPadding(((int) (((this_device_aspect_ratio - remote_device_aspect_ratio) * this_dev_height)) / 2), 0, ((int) (((this_device_aspect_ratio - remote_device_aspect_ratio) * this_dev_height)) / 2), 0);
             }
-
         }
-        if (!PreUtils.get(context, Constant.CONTROL_NO, false)) {
-            // Log.i("Screen", "setOnTouchListener: " + surfaceView.getWidth() + "x" + surfaceView.getHeight());
-            surfaceView.setOnTouchListener((view, event) -> scrcpy.touchevent(event, landscape, surfaceView.getWidth(), surfaceView.getHeight()));
-        }
-
-        if (PreUtils.get(context, Constant.CONTROL_NAV, false) &&
-                !PreUtils.get(context, Constant.CONTROL_NO, false)) {
-            final View backButton = findViewById(R.id.back_button);
-            final View homeButton = findViewById(R.id.home_button);
-            final View appswitchButton = findViewById(R.id.appswitch_button);
-
-            if (backButton != null) {
-                backButton.setOnClickListener(v -> scrcpy.sendKeyevent(KeyEvent.KEYCODE_BACK));
-            }
-            if (homeButton != null) {
-                homeButton.setOnClickListener(v -> scrcpy.sendKeyevent(KeyEvent.KEYCODE_HOME));
-            }
-            if (appswitchButton != null) {
-                appswitchButton.setOnClickListener(v -> scrcpy.sendKeyevent(KeyEvent.KEYCODE_APP_SWITCH));
-            }
-        }
-    }
-
-    private void setSpinner(final int textArrayOptionResId, final int textViewResId, final String preferenceId) {
-
-        final Spinner spinner = findViewById(textViewResId);
-        ArrayAdapter<CharSequence> arrayAdapter = ArrayAdapter.createFromResource(this, textArrayOptionResId, android.R.layout.simple_spinner_item);
-        arrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(arrayAdapter);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                PreUtils.put(context, preferenceId, position);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                PreUtils.put(context, preferenceId, 0);
-            }
-        });
-        int selection = PreUtils.get(context, preferenceId, 0);
-        if (selection < arrayAdapter.getCount()) {
-            spinner.setSelection(selection);
-        } else {
-            spinner.setSelection(0);
-        }
+        surfaceView.setOnTouchListener((view, event) -> scrcpy.touchevent(event, landscape, surfaceView.getWidth(), surfaceView.getHeight()));
     }
 
     private void getAttributes() {
-
-        final EditText editTextServerHost = findViewById(R.id.editText_server_host);
-        serverAdr = editTextServerHost.getText().toString();
-        if (!TextUtils.isEmpty(serverAdr)) {
-            serverAdr = serverAdr.trim();
-        }
-        if (!TextUtils.isEmpty(serverAdr)) {
-            PreUtils.put(context, Constant.CONTROL_REMOTE_ADDR, serverAdr);
-        }
-        final Spinner videoResolutionSpinner = findViewById(R.id.spinner_video_resolution);
-        final Spinner videoBitrateSpinner = findViewById(R.id.spinner_video_bitrate);
-        final Spinner delayControlSpinner = findViewById(R.id.delay_control_spinner);
-        final Switch a_Switch0 = findViewById(R.id.switch0);
-        boolean no_control = a_Switch0.isChecked();
-        final Switch a_Switch1 = findViewById(R.id.switch1);
-        boolean nav = a_Switch1.isChecked();
-        PreUtils.put(context, Constant.CONTROL_NO, no_control);
-        PreUtils.put(context, Constant.CONTROL_NAV, nav);
-
-        final String[] videoResolutions = getResources().getStringArray(R.array.options_resolution_values)[videoResolutionSpinner.getSelectedItemPosition()].split("x");
-        screenHeight = Integer.parseInt(videoResolutions[0]);
-        screenWidth = Integer.parseInt(videoResolutions[1]);
-        videoBitrate = getResources().getIntArray(R.array.options_bitrate_values)[videoBitrateSpinner.getSelectedItemPosition()];
-        delayControl = getResources().getIntArray(R.array.options_delay_values)[delayControlSpinner.getSelectedItemPosition()];
+        // Default values
+        screenHeight = 1280;
+        screenWidth = 720;
+        videoBitrate = 6 * 1024 * 1024; // 6Mbps
+        delayControl = 0;
     }
-
+    
     private String[] getHistoryList() {
         String historyList = PreUtils.get(context, Constant.HISTORY_LIST_KEY, "");
         if (TextUtils.isEmpty(historyList)) {
@@ -502,12 +365,8 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         return new String[]{};
     }
 
-    /**
-     * 保存设备历史连接记录
-     */
     private boolean saveHistory(String device) {
         if (headlessMode) {
-            // 无头模式不保存记录
             return false;
         }
         JSONArray historyJson = new JSONArray();
@@ -520,7 +379,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-            // 最多记录 30 个
             int count = Math.min(historyList.length, 30);
             for (int i = 0; i < count; i++) {
                 if (!historyList[i].equals(device)) {
@@ -555,54 +413,9 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                         | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         surfaceView = findViewById(R.id.decoder_surface);
         surface = surfaceView.getHolder().getSurface();
-        final LinearLayout nav_bar = findViewById(R.id.nav_button_bar);
-        if (PreUtils.get(context, Constant.CONTROL_NAV, false) &&
-                !PreUtils.get(context, Constant.CONTROL_NO, false)) {
-            nav_bar.setVisibility(LinearLayout.VISIBLE);
-        } else {
-            nav_bar.setVisibility(LinearLayout.GONE);
-        }
         linearLayout = findViewById(R.id.container1);
         start_Scrcpy_service();
     }
-
-
-//    protected String wifiIpAddress() {
-////https://stackoverflow.com/questions/6064510/how-to-get-ip-address-of-the-device-from-code
-//        try {
-//            InetAddress ipv4 = null;
-//            InetAddress ipv6 = null;
-//            Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
-//            if (en != null) {
-//                while (en.hasMoreElements()) {
-//                    NetworkInterface int_f = en.nextElement();
-//                    for (Enumeration<InetAddress> enumIpAddr = int_f
-//                            .getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
-//                        InetAddress inetAddress = enumIpAddr.nextElement();
-//                        if (inetAddress instanceof Inet6Address) {
-//                            ipv6 = inetAddress;
-//                            continue;
-//                        }
-//                        if (inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
-//                            ipv4 = inetAddress;
-//                            continue;
-//                        }
-//                        return inetAddress.getHostAddress();
-//                    }
-//                }
-//            }
-//            if (ipv6 != null) {
-//                return ipv6.getHostAddress();
-//            }
-//            if (ipv4 != null) {
-//                return ipv4.getHostAddress();
-//            }
-//        } catch (Exception ex) {
-//            ex.printStackTrace();
-//        }
-//        return "127.0.0.1";
-//    }
-
 
     private void start_Scrcpy_service() {
         Intent intent = new Intent(this, Scrcpy.class);
@@ -617,13 +430,11 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
             first_time = false;
         }
         try {
-            // 可能会导致重复解绑，所以捕获异常
             unbindService(serviceConnection);
         } catch (Exception e) {
             e.printStackTrace();
         }
         serviceBound = false;
-        result_of_Rotation = true;
         landscape = !landscape;
         swapDimensions();
         if (landscape) {
@@ -635,19 +446,20 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
 
     @Override
     public void errorDisconnect() {
-        // 必须退出
-        // 退出重连
-        Dialog.displayDialog(this, getString(R.string.disconnect),
-                getString(R.string.disconnect_ask), () -> {
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.disconnect))
+                .setMessage(getString(R.string.disconnect_ask))
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     if (serviceBound) {
                         showMainView();
                         first_time = true;
                     } else {
                         MainActivity.this.finish();
                     }
-                }, false);
+                })
+                .setCancelable(false)
+                .show();
     }
-
 
     @Override
     protected void onPause() {
@@ -655,7 +467,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         if (serviceBound) {
             scrcpy.pause();
             resumeScrcpy = true;
-            // 返回到主页面，属于用户主动断开场景
             showMainView(true);
             first_time = true;
         }
@@ -664,7 +475,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
     @Override
     protected void onResume() {
         super.onResume();
-        if (!first_time && !result_of_Rotation) {
+        if (!first_time) {
             final View decorView = getWindow().getDecorView();
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -674,17 +485,14 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
             if (serviceBound) {
-                // 黑屏无需修复， 因为只是自带的配置问题
                 linearLayout = findViewById(R.id.container1);
                 scrcpy.resume();
             }
         }
-        if (resumeScrcpy && !result_of_Rotation) {
+        if (resumeScrcpy) {
             resumeScrcpy = false;
             connectScrcpyServer(PreUtils.get(context, Constant.CONTROL_REMOTE_ADDR, ""));
         }
-        resumeScrcpy = false;  // 两处都要resumeScrcpy设置为false
-        result_of_Rotation = false;
     }
 
     @Override
@@ -703,7 +511,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                 if (serviceBound) {
                     showMainView(true);
                     first_time = true;
-                    errorCount = 0;  // 主动断开连接，将错误计数重置为 0
+                    errorCount = 0;
                 } else {
                     finish();
                 }
@@ -712,32 +520,8 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         }
     }
 
-    @Override
-    public void onSensorChanged(SensorEvent sensorEvent) {
-        if (sensorEvent.sensor.getType() == Sensor.TYPE_PROXIMITY) {
-            if (sensorEvent.values[0] == 0) {
-                if (serviceBound) {
-                    // 该事件会使远程手机 按下电源键，触发方式：按住距离传感器，然后点击屏幕即可锁屏
-                    // 发送横竖屏会导致抬起事件无效
-                    // scrcpy.sendKeyevent(28);
-                }
-            } else {
-                if (serviceBound) {
-                    // 发送横竖屏会导致抬起事件无效
-                    // scrcpy.sendKeyevent(29);
-                }
-            }
-        }
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
-
-    }
-
     private void connectScrcpyServer(String serverAdr) {
         if (!TextUtils.isEmpty(serverAdr)) {
-            saveHistory(serverAdr);  // 保存到历史记录
             String[] serverInfo = Util.getServerHostAndPort(serverAdr);
             String serverHost = serverInfo[0];
             int serverPort = Integer.parseInt(serverInfo[1]);
@@ -761,8 +545,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                     outputStream.write(buffer);
                     outputStream.flush();
                     outputStream.close();
-
-                    // fileBase64 = Base64.encode(buffer, 2);
                 } catch (IOException e) {
                     Log.d("Scrcpy", "File scrcpy-server.jar write faild");
                 }
@@ -773,7 +555,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
                         videoBitrate, Math.max(screenHeight, screenWidth)) == 0) {
                     ThreadUtils.post(() -> {
                         if (!MainActivity.this.isFinishing()) {
-                            // 进入主线程
                             Log.e("Scrcpy: ", "from startButton");
                             start_screen_copy_magic();
                         }
@@ -790,9 +571,6 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         }
     }
 
-    /**
-     * 连接成功了，而且成功的显示了画面出来
-     */
     protected void connectSuccessExt() {
         errorCount = 0;
     }
@@ -801,36 +579,29 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, S
         this.connectExitExt(false);
     }
 
-    /**
-     * 连接失败的额外处理
-     */
     protected void connectExitExt(boolean userDisconnect) {
-        if (!userDisconnect) {  // userDisconnect : 用户主动断开连接
+        if (!userDisconnect) {
             errorCount += 1;
-            // errorCount = 0;
             Log.i("Scrcpy", "连接错误次数: " + errorCount);
-            // 错误 3 次，则重启 adb 服务
-            App.startAdbServer();
+            if (errorCount >= 3) {
+                App.startAdbServer();
+            }
         }
-        // 如果是无头模式，自行弹出重连选项
-        if (headlessMode && !resumeScrcpy && !result_of_Rotation) {
-            // 非用户主动断开、非页面切换、非横竖屏切换，才会自动弹出断连提示
+        if (headlessMode && !resumeScrcpy) {
             if (!userDisconnect) {
-                Dialog.displayDialog(this, getString(R.string.connect_faild),
-                        getString(R.string.connect_faild_ask), () -> {
-                            // 重试连接
+                new AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.connect_faild))
+                        .setMessage(getString(R.string.connect_faild_ask))
+                        .setPositiveButton(R.string.retry, (dialog, which) -> {
                             connectScrcpyServer(PreUtils.get(context, Constant.CONTROL_REMOTE_ADDR, ""));
-                        }, () -> {
-
-                            // 取消重试
+                        })
+                        .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
                             finishAndRemoveTask();
-                        });
+                        })
+                        .show();
             } else {
                 finishAndRemoveTask();
             }
         }
-//        Log.i("Scrcpy", "headlessMode： " + headlessMode +
-//                " ,resumeScrcpy: " + resumeScrcpy + " ,result_of_Rotation: " + result_of_Rotation);
     }
-
 }
