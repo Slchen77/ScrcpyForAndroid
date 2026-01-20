@@ -25,41 +25,6 @@ android {
             minifyEnabled false
         }
     }
-
-    tasks.register('copyServer', Copy) {
-        def buildType = gradle.startParameter.taskNames.any { it.endsWith('Release') } ? 'Release' : 'Debug'
-        dependsOn 'deleteServer'
-        dependsOn("assemble${buildType}")
-
-        def release_file = 'build/outputs/apk/release/server-release-unsigned.apk'
-        def debug_file = 'build/outputs/apk/debug/server-debug.apk'
-        def file_dest = '../app/src/main/assets/'
-
-        if (buildType == "Debug") {
-            from file(debug_file)
-            into file(file_dest)
-        } else {
-            from file(release_file)
-            into file(file_dest)
-        }
-        rename { fileName ->
-            'scrcpy-server.jar'
-        }
-
-    }
-    tasks.register('deleteServer', Delete) {
-        delete "../app/src/main/assets/scrcpy-server.jar"
-    }
-
-//    tasks.whenTaskAdded { task ->
-//        task.finalizedBy(copyServer)
-//    }
-//    afterEvaluate {
-//        packageRelease.finalizedBy(copyServer)
-//    }
-//    afterEvaluate {
-//        packageDebug.finalizedBy(copyServer)
-//    }
 }
 
 dependencies {
