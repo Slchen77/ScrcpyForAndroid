@@ -29,6 +29,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListPopupWindow;
@@ -211,13 +212,13 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
         setContentView(R.layout.activity_main);
 
         Button connectButton = findViewById(R.id.button_connect_device);
-        TextView languageButton = findViewById(R.id.button_language_switch);
+//        TextView languageButton = findViewById(R.id.);
 
         sendCommands = new SendCommands();
 
         connectButton.setOnClickListener(v -> showConnectDialog());
 
-        languageButton.setOnClickListener(v -> switchLanguage());
+//        languageButton.setOnClickListener(v -> switchLanguage());
     }
 
     private void showConnectDialog() {
@@ -255,7 +256,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
                 Toast.makeText(context, R.string.ip_address_empty, Toast.LENGTH_SHORT).show();
             }
         });
-        
+
         historyButton.setOnClickListener(v -> {
             editTextIp.clearFocus();
             showListPopupWindow(editTextIp);
@@ -263,7 +264,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
 
         dialog.show();
     }
-    
+
     private void showListPopupWindow(EditText mEditText) {
         String[] list = getHistoryList();
         if (list.length == 0) {
@@ -323,7 +324,7 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
                 int padding = (int) (this_dev_width - wantWidth) / 2;
                 linearLayout.setPadding(padding, 0, padding, 0);
             } else if (remote_device_aspect_ratio < this_device_aspect_ratio) {
-                linearLayout.setPadding(0, (int) (((this_device_aspect_ratio - remote_device_aspect_ratio) * this_dev_width)), 0, 0);
+                linearLayout.setPadding(0, (int) 0, 0, (int) (((this_device_aspect_ratio - remote_device_aspect_ratio) / 2 * this_dev_width)));
             }
 
         } else {
@@ -343,10 +344,10 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
         // Default values
         screenHeight = 1280;
         screenWidth = 720;
-        videoBitrate = 6 * 1024 * 1024; // 6Mbps
+        videoBitrate = 2 * 1024 * 1024; // 6Mbps
         delayControl = 0;
     }
-    
+
     private String[] getHistoryList() {
         String historyList = PreUtils.get(context, Constant.HISTORY_LIST_KEY, "");
         if (TextUtils.isEmpty(historyList)) {
@@ -414,6 +415,22 @@ public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks {
         surfaceView = findViewById(R.id.decoder_surface);
         surface = surfaceView.getHolder().getSurface();
         linearLayout = findViewById(R.id.container1);
+
+        ImageButton btnDisconnect = findViewById(R.id.btn_disconnect);
+        btnDisconnect.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("断开连接")
+                    .setMessage("确定要断开当前投屏连接吗？")
+                    .setPositiveButton("断开", (dialog, which) -> {
+                        // 核心断开逻辑
+                        scrcpy.pause();
+                        resumeScrcpy = true;
+                        showMainView(true);
+                        first_time = true;
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
         start_Scrcpy_service();
     }
 

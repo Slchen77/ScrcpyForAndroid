@@ -33,5 +33,9 @@
     <string name="disconnect_ask">The connection is detected to be disconnected, please exit and reconnect</string>
 
     <string name="need_register">Registration required</string>
+    <string name="setting">setting</string>
+
+    <string name="connect_device_tip">Connect Device</string>
+    <string name="remote_no_device_connect">Connection lost</string>
 
 </resources>

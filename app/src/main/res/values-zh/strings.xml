@@ -22,7 +22,7 @@
     <string name="back_button">\u003C</string>
     <string name="switch0">观看模式 (不进行控制)</string>
     <string name="switch1">底部控制按钮 (返回键)</string>
-    <string name="connect_tips">Tips: 需要开启手机的无线调试\n\t\t重置adb端口命令:adb tcpip 5555</string>
+    <string name="connect_tips">Tips</string>
     <string name="please_wait">连接中 …</string>
 
     <string name="connect_faild">连接失败</string>
@@ -32,4 +32,7 @@
     <string name="disconnect_ask">检测到连接已断开，请退出后重新连接</string>
 
     <string name="need_register">需要注册</string>
+    <string name="setting">设置</string>
+    <string name="connect_device_tip">连接设备</string>
+    <string name="remote_no_device_connect">设备连接中断</string>
 </resources>
